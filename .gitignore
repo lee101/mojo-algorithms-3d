@@ -1,0 +1,7 @@
+.pixi/
+.mojo_cache/
+*.mojoc
+*.mojopkg
+*.out
+build/
+dist/

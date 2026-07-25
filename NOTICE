@@ -1,0 +1,6 @@
+mojo-algorithms-3d
+Copyright 2026 Lee Penkman
+
+This project is an independent, clean-room implementation. MeshLab and
+VCGlib names are used in project documentation only to describe the wider
+mesh-processing problem space. No MeshLab or VCGlib source code is included.
