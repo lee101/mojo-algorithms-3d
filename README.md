@@ -6,9 +6,10 @@
 Open, reusable 3D geometry algorithms written in
 [Mojo](https://www.modular.com/mojo).
 
-The `0.1` release provides a compact owned triangle mesh, mesh validation and
-quality metrics, plus topology-preserving surface relaxation that combines
-Voronoi-style centroid movement with quadric error constraints.
+The library provides a compact owned triangle mesh, validation and quality
+metrics, conservative structural repair, plus topology-preserving surface
+relaxation that combines Voronoi-style centroid movement with quadric error
+constraints.
 
 ## Why this exists
 
@@ -61,6 +62,20 @@ Run consumers with this repository on the Mojo import path:
 mojo run -I /path/to/mojo-algorithms-3d app.mojo
 ```
 
+## Repair damaged meshes
+
+```mojo
+from algorithms3d import RepairOptions, TriangleMesh, repair_mesh
+
+fn clean(mut mesh: TriangleMesh) raises:
+    var options = RepairOptions()
+    var stats = repair_mesh(mesh, options)
+    print("removed duplicate faces:", stats.removed_duplicate_faces)
+```
+
+The repair pass preserves the first valid occurrence of each face and reports
+invalid faces, degenerate faces, duplicates, and compacted vertices separately.
+
 ## API stability
 
 `algorithms3d` is the only public import root. The `remesh` implementation
@@ -70,7 +85,6 @@ only in minor releases and will be documented in `CHANGELOG.md`.
 ## Roadmap
 
 - QEM edge-collapse simplification with manifold and attribute guards
-- duplicate/degenerate cleanup and unreferenced-vertex compaction
 - vertex and corner normal generation
 - connected components and topology inspection
 - spatial queries and BVH acceleration
