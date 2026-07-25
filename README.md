@@ -1,5 +1,8 @@
 # mojo-algorithms-3d
 
+[![CI](https://github.com/lee101/mojo-algorithms-3d/actions/workflows/ci.yml/badge.svg)](https://github.com/lee101/mojo-algorithms-3d/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 Open, reusable 3D geometry algorithms written in
 [Mojo](https://www.modular.com/mojo).
 
@@ -23,6 +26,8 @@ source from either project is included here.
 Install [Pixi](https://pixi.sh), then run:
 
 ```bash
+git clone https://github.com/lee101/mojo-algorithms-3d.git
+cd mojo-algorithms-3d
 pixi run test
 pixi run example
 ```
