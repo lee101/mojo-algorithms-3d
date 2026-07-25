@@ -4,13 +4,15 @@ channels = ["https://conda.modular.com/max/", "conda-forge"]
 description = "Open 3D geometry algorithms written in Mojo"
 name = "mojo-algorithms-3d"
 platforms = ["linux-64"]
-version = "0.1.0"
+version = "0.2.0"
 
 [dependencies]
 mojo = "==1.0.0b2"
 
 [tasks]
-check = { cmd = "mojo run -I . tests/test_surface_relax.mojo" }
+check = { depends-on = ["check-repair", "check-remesh"] }
+check-remesh = { cmd = "mojo run -I . tests/test_surface_relax.mojo" }
+check-repair = { cmd = "mojo run -I . tests/test_repair.mojo" }
 example = { cmd = "mojo run -I . examples/remesh_grid.mojo" }
 package = { cmd = "mkdir -p dist && mojo precompile algorithms3d -o dist/algorithms3d.mojoc" }
 test = { depends-on = ["check", "package"] }
