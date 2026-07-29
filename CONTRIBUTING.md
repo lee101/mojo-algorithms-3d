@@ -12,4 +12,4 @@ Thank you for helping build a dependable 3D toolkit for Mojo.
    license is compatible, attribution is complete, and the dependency has
    been discussed in an issue.
 
-Contributions are accepted under the Apache-2.0 license.
+Contributions are accepted under the MIT License.

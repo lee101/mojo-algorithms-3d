@@ -8,11 +8,20 @@ version = "0.2.0"
 
 [dependencies]
 mojo = "==1.0.0b2"
+numpy = "*"
+pytest = "*"
+python = ">=3.13"
 
 [tasks]
+build = { cmd = "bash scripts/build.sh" }
+bench = { cmd = "flock /tmp/mojo-bench.lock python bench/bench.py", depends-on = ["build"] }
 check = { depends-on = ["check-repair", "check-remesh"] }
+check-batch = { cmd = "python -m pytest tests/test_batch_quality.py -q", depends-on = ["build"] }
 check-remesh = { cmd = "mojo run -I . tests/test_surface_relax.mojo" }
 check-repair = { cmd = "mojo run -I . tests/test_repair.mojo" }
 example = { cmd = "mojo run -I . examples/remesh_grid.mojo" }
 package = { cmd = "mkdir -p dist && mojo precompile algorithms3d -o dist/algorithms3d.mojoc" }
-test = { depends-on = ["check", "package"] }
+test = { depends-on = ["check", "check-batch", "package"] }
+
+[activation.env]
+PYTHONPATH = "python"

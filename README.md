@@ -1,7 +1,7 @@
 # mojo-algorithms-3d
 
 [![CI](https://github.com/lee101/mojo-algorithms-3d/actions/workflows/ci.yml/badge.svg)](https://github.com/lee101/mojo-algorithms-3d/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Open, reusable 3D geometry algorithms written in
 [Mojo](https://www.modular.com/mojo).
@@ -43,6 +43,19 @@ The compiler-version-specific artifact is written to
 `dist/algorithms3d.mojoc`. Source imports are recommended for libraries that
 need to support more than one Mojo compiler release.
 
+Build the optional zero-copy NumPy bridge:
+
+```bash
+pixi run build
+PYTHONPATH=python python -c "import mojo_algorithms_3d"
+```
+
+Its `triangle_soup_quality` function accepts an existing C-contiguous
+`float32` array with shape `(9, triangle_count)`, ordered as
+`ax, ay, az, bx, by, bz, cx, cy, cz`. The input buffer is passed directly to
+the compiled Mojo shared library. Wrong dtypes and non-contiguous arrays are
+rejected instead of being copied implicitly.
+
 ## Use from source
 
 ```mojo
@@ -76,6 +89,37 @@ fn clean(mut mesh: TriangleMesh) raises:
 The repair pass preserves the first valid occurrence of each face and reports
 invalid faces, degenerate faces, duplicates, and compacted vertices separately.
 
+## Benchmarks
+
+Run the reproducible harness with:
+
+```bash
+pixi run bench
+```
+
+The Pixi task builds the native artifacts, then runs the timed command under
+`flock /tmp/mojo-bench.lock`. Every case gets one warmup; the table reports the
+median of seven repeats, except surface relaxation, which uses five. Inputs are
+identical between implementations, setup is outside the timed region, and the
+Python relaxation reference mirrors the same centroid, QEM, projection, and
+line-search steps.
+
+Measured on 2026-07-29 with Mojo 1.0.0b2 and an Intel Xeon E5-2697 v4:
+
+| Operation | Input size | mojo-algorithms-3d | Baseline | Speedup |
+|---|---:|---:|---:|---:|
+| triangle-soup quality | 1,000,003 triangles | 4.770 ms | 112.461 ms NumPy | 23.57x |
+| owned-mesh quality | 79,202 triangles | 6.562 ms | 21.667 ms NumPy | 3.30x |
+| duplicate-face repair | 10,000 input faces | 0.899 ms | 669.132 ms pure Python | 744.34x |
+| surface relaxation | 242 triangles, 2 iterations | 0.385 ms | 136.296 ms NumPy/Python | 353.81x |
+
+These are measurements from this machine, not performance guarantees. The
+triangle-soup quality kernel uses eight-lane Float32 SIMD here, including a
+scalar tail. It parallelizes only at 4,000,000 triangles or more and caps
+execution at 16 physical-core workers. Repair uses hashed canonical face keys.
+Surface relaxation uses cached vertex-face adjacency and per-iteration face
+data; neither of those two kernels starts worker threads.
+
 ## API stability
 
 `algorithms3d` is the only public import root. The `remesh` implementation
@@ -96,4 +140,4 @@ remain useful without a GUI or a particular renderer.
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+MIT. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

@@ -2,6 +2,19 @@
 
 All notable changes are documented here.
 
+## Unreleased
+
+### Added
+
+- Locked, warmed, median benchmarks against NumPy and pure Python references.
+- Zero-copy NumPy access to a SIMD triangle-soup quality kernel.
+
+### Changed
+
+- Replaced quadratic duplicate-face lookup with hashed canonical face keys.
+- Reused vertex-face adjacency and per-iteration face data in surface relaxation.
+- Relicensed the project under the MIT License.
+
 ## 0.2.0 - 2026-07-25
 
 ### Added

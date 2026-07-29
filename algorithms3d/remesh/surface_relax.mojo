@@ -1,6 +1,6 @@
 """Surface Voronoi relaxation constrained by per-vertex error quadrics."""
 
-from std.collections import List
+from std.collections import Dict, List
 from std.math import abs, cos
 
 from ..mesh import MeshQuality, TriangleMesh, Vec3, compute_quality, validate_mesh
@@ -92,13 +92,43 @@ struct _Quadric(Copyable, Movable, ImplicitlyCopyable, ImplicitlyDestructible):
         self.q23 += normal.z * d * weight
 
 
-def _face_contains(mesh: TriangleMesh, face: Int, vertex: Int) -> Bool:
-    var base = face * 3
-    return (
-        mesh.indices[base] == vertex
-        or mesh.indices[base + 1] == vertex
-        or mesh.indices[base + 2] == vertex
-    )
+struct _VertexFaces(Movable):
+    var offsets: List[Int]
+    var faces: List[Int]
+
+    def __init__(out self):
+        self.offsets = List[Int]()
+        self.faces = List[Int]()
+
+
+def _build_vertex_faces(mesh: TriangleMesh) -> _VertexFaces:
+    var counts = List[Int]()
+    counts.reserve(mesh.vertex_count())
+    for _ in range(mesh.vertex_count()):
+        counts.append(0)
+    for index in mesh.indices:
+        counts[index] += 1
+
+    var result = _VertexFaces()
+    result.offsets.reserve(mesh.vertex_count() + 1)
+    result.offsets.append(0)
+    for count in counts:
+        result.offsets.append(result.offsets[len(result.offsets) - 1] + count)
+    result.faces.reserve(len(mesh.indices))
+    for _ in mesh.indices:
+        result.faces.append(0)
+
+    var cursor = List[Int]()
+    cursor.reserve(mesh.vertex_count())
+    for vertex in range(mesh.vertex_count()):
+        cursor.append(result.offsets[vertex])
+    for face in range(mesh.triangle_count()):
+        var base = face * 3
+        for corner in range(3):
+            var vertex = mesh.indices[base + corner]
+            result.faces[cursor[vertex]] = face
+            cursor[vertex] += 1
+    return result^
 
 
 def _face_normal(mesh: TriangleMesh, face: Int) -> Vec3:
@@ -126,52 +156,52 @@ def _face_centroid(mesh: TriangleMesh, face: Int) -> Vec3:
     ) * (1.0 / 3.0)
 
 
-def _edge_occurrences(mesh: TriangleMesh, a: Int, b: Int) -> Int:
-    var count = 0
-    for face in range(mesh.triangle_count()):
-        var base = face * 3
-        var x = mesh.indices[base]
-        var y = mesh.indices[base + 1]
-        var z = mesh.indices[base + 2]
-        if (x == a and y == b) or (x == b and y == a):
-            count += 1
-        if (y == a and z == b) or (y == b and z == a):
-            count += 1
-        if (z == a and x == b) or (z == b and x == a):
-            count += 1
-    return count
+def _edge_key(a: Int, b: Int, vertex_count: Int) -> Int:
+    return min(a, b) * vertex_count + max(a, b)
 
 
-def _is_boundary_vertex(mesh: TriangleMesh, vertex: Int) -> Bool:
+def _boundary_vertices(mesh: TriangleMesh) raises -> List[Bool]:
+    var edge_counts = Dict[Int, Int]()
     for face in range(mesh.triangle_count()):
-        if not _face_contains(mesh, face, vertex):
-            continue
         var base = face * 3
-        var triangle = List[Int]()
-        triangle.append(mesh.indices[base])
-        triangle.append(mesh.indices[base + 1])
-        triangle.append(mesh.indices[base + 2])
         for corner in range(3):
-            var a = triangle[corner]
-            var b = triangle[(corner + 1) % 3]
-            if (a == vertex or b == vertex) and _edge_occurrences(mesh, a, b) == 1:
-                return True
-    return False
+            var a = mesh.indices[base + corner]
+            var b = mesh.indices[base + (corner + 1) % 3]
+            var key = _edge_key(a, b, mesh.vertex_count())
+            if key in edge_counts:
+                edge_counts[key] += 1
+            else:
+                edge_counts[key] = 1
+
+    var boundaries = List[Bool]()
+    boundaries.reserve(mesh.vertex_count())
+    for _ in range(mesh.vertex_count()):
+        boundaries.append(False)
+    for face in range(mesh.triangle_count()):
+        var base = face * 3
+        for corner in range(3):
+            var a = mesh.indices[base + corner]
+            var b = mesh.indices[base + (corner + 1) % 3]
+            if edge_counts[_edge_key(a, b, mesh.vertex_count())] == 1:
+                boundaries[a] = True
+                boundaries[b] = True
+    return boundaries^
 
 
 def _is_feature_vertex(
-    mesh: TriangleMesh, vertex: Int, angle_degrees: Float32
+    vertex_faces: _VertexFaces,
+    face_normals: List[Vec3],
+    vertex: Int,
+    angle_degrees: Float32,
 ) -> Bool:
     var cosine_threshold = cos(angle_degrees * 3.141592653589793 / 180.0)
-    for first in range(mesh.triangle_count()):
-        if not _face_contains(mesh, first, vertex):
-            continue
-        for second in range(first + 1, mesh.triangle_count()):
-            if (
-                _face_contains(mesh, second, vertex)
-                and _face_normal(mesh, first).dot(_face_normal(mesh, second))
-                < cosine_threshold
-            ):
+    var begin = vertex_faces.offsets[vertex]
+    var end = vertex_faces.offsets[vertex + 1]
+    for first_position in range(begin, end):
+        var first = vertex_faces.faces[first_position]
+        for second_position in range(first_position + 1, end):
+            var second = vertex_faces.faces[second_position]
+            if face_normals[first].dot(face_normals[second]) < cosine_threshold:
                 return True
     return False
 
@@ -210,13 +240,17 @@ def _closest_point_triangle(point: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Vec3:
 
 
 def _closest_point_on_source(
-    point: Vec3, vertex: Int, source: TriangleMesh
+    point: Vec3,
+    vertex: Int,
+    source: TriangleMesh,
+    vertex_faces: _VertexFaces,
 ) -> Vec3:
     var best = source.vertices[vertex]
     var best_distance = Float32(3.4028235e38)
-    for face in range(source.triangle_count()):
-        if not _face_contains(source, face, vertex):
-            continue
+    for position in range(
+        vertex_faces.offsets[vertex], vertex_faces.offsets[vertex + 1]
+    ):
+        var face = vertex_faces.faces[position]
         var base = face * 3
         var candidate = _closest_point_triangle(
             point,
@@ -288,18 +322,32 @@ def surface_relax(
         raise Error("qem_weight cannot be negative")
 
     var source = mesh.copy()
+    var vertex_faces = _build_vertex_faces(mesh)
+    var source_face_normals = List[Vec3]()
+    var source_face_areas = List[Float32]()
+    source_face_normals.reserve(mesh.triangle_count())
+    source_face_areas.reserve(mesh.triangle_count())
+    for face in range(mesh.triangle_count()):
+        source_face_normals.append(_face_normal(mesh, face))
+        source_face_areas.append(_face_area(mesh, face))
+
     var quadrics = List[_Quadric]()
     var areas = List[Float32]()
-    var boundaries = List[Bool]()
+    quadrics.reserve(mesh.vertex_count())
+    areas.reserve(mesh.vertex_count())
+    var boundaries = _boundary_vertices(mesh)
     var features = List[Bool]()
+    features.reserve(mesh.vertex_count())
     for vertex in range(mesh.vertex_count()):
         var q = _Quadric()
         var area_sum: Float32 = 0.0
-        for face in range(mesh.triangle_count()):
-            if not _face_contains(mesh, face, vertex):
-                continue
-            var normal = _face_normal(mesh, face)
-            var area = _face_area(mesh, face)
+        for position in range(
+            vertex_faces.offsets[vertex],
+            vertex_faces.offsets[vertex + 1],
+        ):
+            var face = vertex_faces.faces[position]
+            var normal = source_face_normals[face]
+            var area = source_face_areas[face]
             var base = face * 3
             q.add_plane(
                 normal, -normal.dot(mesh.vertices[mesh.indices[base]]), area
@@ -307,9 +355,15 @@ def surface_relax(
             area_sum += area
         quadrics.append(q)
         areas.append(area_sum)
-        boundaries.append(_is_boundary_vertex(mesh, vertex))
         features.append(
-            _is_feature_vertex(mesh, vertex, options.feature_angle_degrees)
+            _is_feature_vertex(
+                vertex_faces,
+                source_face_normals,
+                vertex,
+                options.feature_angle_degrees,
+            )
+            if options.preserve_features
+            else False
         )
 
     var stats = RemeshStats()
@@ -323,7 +377,19 @@ def surface_relax(
             stats.locked_feature_vertices += 1
 
     for _ in range(options.iterations):
+        var face_areas = List[Float32]()
+        var face_normals = List[Vec3]()
+        var face_centroids = List[Vec3]()
+        face_areas.reserve(mesh.triangle_count())
+        face_normals.reserve(mesh.triangle_count())
+        face_centroids.reserve(mesh.triangle_count())
+        for face in range(mesh.triangle_count()):
+            face_areas.append(_face_area(mesh, face))
+            face_normals.append(_face_normal(mesh, face))
+            face_centroids.append(_face_centroid(mesh, face))
+
         var proposals = List[Vec3]()
+        proposals.reserve(mesh.vertex_count())
         for vertex in range(mesh.vertex_count()):
             var position = mesh.vertices[vertex]
             if (
@@ -335,12 +401,15 @@ def surface_relax(
             var centroid = Vec3.zero()
             var normal = Vec3.zero()
             var total_area: Float32 = 0.0
-            for face in range(mesh.triangle_count()):
-                if _face_contains(mesh, face, vertex):
-                    var area = _face_area(mesh, face)
-                    centroid = centroid + _face_centroid(mesh, face) * area
-                    normal = normal + _face_normal(mesh, face) * area
-                    total_area += area
+            for face_position in range(
+                vertex_faces.offsets[vertex],
+                vertex_faces.offsets[vertex + 1],
+            ):
+                var face = vertex_faces.faces[face_position]
+                var area = face_areas[face]
+                centroid = centroid + face_centroids[face] * area
+                normal = normal + face_normals[face] * area
+                total_area += area
             if total_area <= 1.0e-12:
                 proposals.append(position)
                 continue
@@ -353,12 +422,15 @@ def surface_relax(
                 target, quadrics[vertex], areas[vertex], options.qem_weight
             )
             proposals.append(
-                _closest_point_on_source(regularized, vertex, source)
+                _closest_point_on_source(
+                    regularized, vertex, source, vertex_faces
+                )
             )
 
         var accepted = False
         var accepted_quality = stats.final
         var accepted_vertices = List[Vec3]()
+        accepted_vertices.reserve(mesh.vertex_count())
         for step in [
             Float32(1.0), Float32(0.5), Float32(0.25), Float32(0.125)
         ]:
@@ -369,7 +441,7 @@ def surface_relax(
                     + (proposals[vertex] - mesh.vertices[vertex]) * step
                 )
                 candidate.vertices[vertex] = _closest_point_on_source(
-                    blended, vertex, source
+                    blended, vertex, source, vertex_faces
                 )
             var quality = compute_quality(candidate)
             if quality.objective <= stats.final.objective + 1.0e-7:
@@ -392,7 +464,7 @@ def surface_relax(
 
     for vertex in range(mesh.vertex_count()):
         var projected = _closest_point_on_source(
-            mesh.vertices[vertex], vertex, source
+            mesh.vertices[vertex], vertex, source, vertex_faces
         )
         var deviation = (mesh.vertices[vertex] - projected).length()
         if deviation > stats.max_surface_deviation:

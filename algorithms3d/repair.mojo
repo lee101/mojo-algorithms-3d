@@ -1,6 +1,6 @@
 """Deterministic structural cleanup for indexed triangle meshes."""
 
-from std.collections import List
+from std.collections import Dict, List
 
 from .mesh import TriangleMesh, Vec3, validate_mesh
 
@@ -66,30 +66,11 @@ def _indices_in_range(mesh: TriangleMesh, a: Int, b: Int, c: Int) -> Bool:
     )
 
 
-def _same_vertex_set(
-    a: Int, b: Int, c: Int, x: Int, y: Int, z: Int
-) -> Bool:
-    """Compare triangle corners without depending on winding or rotation."""
-    return (
-        (a == x or a == y or a == z)
-        and (b == x or b == y or b == z)
-        and (c == x or c == y or c == z)
-    )
-
-
-def _already_kept(indices: List[Int], a: Int, b: Int, c: Int) -> Bool:
-    for face in range(len(indices) // 3):
-        var base = face * 3
-        if _same_vertex_set(
-            a,
-            b,
-            c,
-            indices[base],
-            indices[base + 1],
-            indices[base + 2],
-        ):
-            return True
-    return False
+def _face_key(a: Int, b: Int, c: Int, vertex_count: Int) -> Int:
+    var low = min(a, min(b, c))
+    var high = max(a, max(b, c))
+    var middle = a + b + c - low - high
+    return (low * vertex_count + middle) * vertex_count + high
 
 
 def _compact_vertices(mut mesh: TriangleMesh) -> Int:
@@ -131,6 +112,7 @@ def repair_mesh(
     stats.input_vertices = mesh.vertex_count()
     stats.input_faces = len(mesh.indices) // 3
     var kept = List[Int]()
+    var seen_faces = Dict[Int, Bool]()
 
     for face in range(len(mesh.indices) // 3):
         var base = face * 3
@@ -155,12 +137,12 @@ def repair_mesh(
         if twice_area <= options.degenerate_epsilon:
             stats.removed_degenerate_faces += 1
             continue
-        if (
-            options.remove_duplicate_faces
-            and _already_kept(kept, a, b, c)
-        ):
-            stats.removed_duplicate_faces += 1
-            continue
+        if options.remove_duplicate_faces:
+            var face_key = _face_key(a, b, c, mesh.vertex_count())
+            if face_key in seen_faces:
+                stats.removed_duplicate_faces += 1
+                continue
+            seen_faces[face_key] = True
         kept.append(a)
         kept.append(b)
         kept.append(c)
