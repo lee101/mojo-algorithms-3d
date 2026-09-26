@@ -115,10 +115,12 @@ Measured on 2026-07-29 with Mojo 1.0.0b2 and an Intel Xeon E5-2697 v4:
 
 These are measurements from this machine, not performance guarantees. The
 triangle-soup quality kernel uses eight-lane Float32 SIMD here, including a
-scalar tail. It parallelizes only at 4,000,000 triangles or more and caps
-execution at 16 physical-core workers. Repair uses hashed canonical face keys.
-Surface relaxation uses cached vertex-face adjacency and per-iteration face
-data; neither of those two kernels starts worker threads.
+scalar tail. At 4,000,000 triangles or more it splits the triangle range into
+up to 16 partial-accumulator rows and folds them; that split is run on the
+calling thread because the kernel reads nine SoA planes per triangle and is
+bandwidth-bound, so worker threads measured slower. Repair uses hashed
+canonical face keys. Surface relaxation uses cached vertex-face adjacency and
+per-iteration face data; neither of those two kernels splits its work.
 
 ## API stability
 

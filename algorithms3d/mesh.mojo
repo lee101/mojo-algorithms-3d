@@ -4,7 +4,7 @@ from std.collections import List
 from std.math import sqrt
 
 
-struct Vec3(Copyable, Movable, ImplicitlyCopyable, ImplicitlyDestructible):
+struct Vec3(Copyable, Movable, ImplicitlyCopyable):
     """A compact Float32 three-vector."""
 
     var x: Float32
@@ -83,7 +83,7 @@ struct TriangleMesh(Movable):
         return result^
 
 
-struct MeshQuality(Copyable, Movable, ImplicitlyCopyable, ImplicitlyDestructible):
+struct MeshQuality(Copyable, Movable, ImplicitlyCopyable):
     """Scale-independent triangle and edge-distribution metrics."""
 
     var mean_edge_length: Float32

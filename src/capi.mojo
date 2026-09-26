@@ -1,6 +1,5 @@
 """Zero-copy C ABI for high-throughput triangle-soup metrics."""
 
-from std.algorithm import parallelize
 from std.math import sqrt
 from std.sys.info import num_physical_cores, simd_width_of as simdwidthof
 
@@ -152,18 +151,12 @@ def a3d_triangle_soup_quality(
             scratch_rows,
             min(MAX_QUALITY_WORKERS, num_physical_cores()),
         )
-
-        @parameter
-        @__copy_capture(coordinates, triangle_count, partials, tasks)
-        @always_inline
-        def process_parallel_chunk(task: Int):
+        for task in range(tasks):
             var begin = triangle_count * task // tasks
             var end = triangle_count * (task + 1) // tasks
             quality_chunk(
                 coordinates, triangle_count, begin, end, partials, task
             )
-
-        parallelize[process_parallel_chunk](tasks, tasks)
     else:
         quality_chunk(
             coordinates, triangle_count, 0, triangle_count, partials, 0

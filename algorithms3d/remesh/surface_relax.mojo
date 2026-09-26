@@ -6,7 +6,7 @@ from std.math import abs, cos
 from ..mesh import MeshQuality, TriangleMesh, Vec3, compute_quality, validate_mesh
 
 
-struct RemeshOptions(Copyable, Movable, ImplicitlyCopyable, ImplicitlyDestructible):
+struct RemeshOptions(Copyable, Movable, ImplicitlyCopyable):
     """Controls for deterministic, topology-preserving surface relaxation."""
 
     var iterations: Int
@@ -27,7 +27,7 @@ struct RemeshOptions(Copyable, Movable, ImplicitlyCopyable, ImplicitlyDestructib
         self.convergence = 1.0e-5
 
 
-struct RemeshStats(Copyable, Movable, ImplicitlyCopyable, ImplicitlyDestructible):
+struct RemeshStats(Copyable, Movable, ImplicitlyCopyable):
     """Measured result of a remeshing pass."""
 
     var iterations_requested: Int
@@ -58,7 +58,7 @@ struct RemeshStats(Copyable, Movable, ImplicitlyCopyable, ImplicitlyDestructible
         )
 
 
-struct _Quadric(Copyable, Movable, ImplicitlyCopyable, ImplicitlyDestructible):
+struct _Quadric(Copyable, Movable, ImplicitlyCopyable):
     var q00: Float32
     var q01: Float32
     var q02: Float32

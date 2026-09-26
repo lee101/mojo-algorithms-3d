@@ -5,9 +5,7 @@ from std.collections import Dict, List
 from .mesh import TriangleMesh, Vec3, validate_mesh
 
 
-struct RepairOptions(
-    Copyable, Movable, ImplicitlyCopyable, ImplicitlyDestructible
-):
+struct RepairOptions(Copyable, Movable, ImplicitlyCopyable):
     """Controls for the conservative cleanup pass."""
 
     var degenerate_epsilon: Float32
@@ -22,9 +20,7 @@ struct RepairOptions(
         self.compact_unreferenced_vertices = True
 
 
-struct RepairStats(
-    Copyable, Movable, ImplicitlyCopyable, ImplicitlyDestructible
-):
+struct RepairStats(Copyable, Movable, ImplicitlyCopyable):
     """Counts describing exactly what a cleanup pass changed."""
 
     var input_vertices: Int
